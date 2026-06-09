@@ -24,10 +24,15 @@ class UserFactory extends Factory
      */
     public function definition(): array
     {
+        // username: заглавная буква + латиница, минимум 7 символов.
+        $username = ucfirst(fake()->unique()->lexify('???????'));
+
         return [
+            'username' => $username,
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
+            'birthday' => fake()->dateTimeBetween('-60 years', '-14 years')->format('Y-m-d'),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
         ];
