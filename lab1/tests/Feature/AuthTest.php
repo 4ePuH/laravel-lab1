@@ -142,6 +142,61 @@ class AuthTest extends TestCase
             ->assertStatus(403);
     }
 
+    public function test_change_password_success(): void
+    {
+        $token = $this->loginAndGetAccessToken();
+
+        $this->withToken($token)->postJson('/api/auth/change-password', [
+            'current_password' => 'Password1!',
+            'new_password' => 'NewPass2@',
+            'new_password_confirmation' => 'NewPass2@',
+        ])->assertOk();
+
+        // Новый пароль работает, старый — нет.
+        $this->postJson('/api/auth/login', ['username' => 'Johndoe', 'password' => 'NewPass2@'])->assertOk();
+        $this->postJson('/api/auth/login', ['username' => 'Johndoe', 'password' => 'Password1!'])->assertStatus(401);
+    }
+
+    public function test_change_password_wrong_current_returns_422(): void
+    {
+        $token = $this->loginAndGetAccessToken();
+
+        $this->withToken($token)->postJson('/api/auth/change-password', [
+            'current_password' => 'WrongPass1!',
+            'new_password' => 'NewPass2@',
+            'new_password_confirmation' => 'NewPass2@',
+        ])->assertStatus(422)->assertJsonValidationErrors('current_password');
+    }
+
+    public function test_change_password_weak_new_returns_422(): void
+    {
+        $token = $this->loginAndGetAccessToken();
+
+        $this->withToken($token)->postJson('/api/auth/change-password', [
+            'current_password' => 'Password1!',
+            'new_password' => 'weak',
+            'new_password_confirmation' => 'weak',
+        ])->assertStatus(422)->assertJsonValidationErrors('new_password');
+    }
+
+    public function test_login_limit_revokes_oldest(): void
+    {
+        config(['tokens.max_active' => 2]);
+        User::factory()->create(['username' => 'Johndoe', 'password' => Hash::make('Password1!')]);
+
+        $tokens = [];
+        for ($i = 0; $i < 3; $i++) {
+            $tokens[] = $this->postJson('/api/auth/login', [
+                'username' => 'Johndoe', 'password' => 'Password1!',
+            ])->json('access_token');
+        }
+
+        // Самый старый отозван, два новых живы.
+        $this->withToken($tokens[0])->getJson('/api/auth/me')->assertStatus(401);
+        $this->withToken($tokens[1])->getJson('/api/auth/me')->assertOk();
+        $this->withToken($tokens[2])->getJson('/api/auth/me')->assertOk();
+    }
+
     /**
      * Создаёт пользователя, логинит и отдаёт access-токен.
      */

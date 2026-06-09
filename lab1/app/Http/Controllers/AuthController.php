@@ -150,12 +150,11 @@ class AuthController extends Controller
     }
 
     /**
-     * Смена пароля. Текущий пароль проверяется, новый — валидируется
-     * по тем же правилам, что при регистрации. Из соображений
-     * безопасности все активные токены отзываются.
+     * Смена пароля. Текущий пароль и правила нового пароля проверяет
+     * ChangePasswordRequest. Из соображений безопасности все активные
+     * токены пользователя отзываются.
      *
-     * @return JsonResponse сообщение об успехе, статус 200;
-     *                      либо ошибка 401 при неверном текущем пароле
+     * @return JsonResponse сообщение об успехе, статус 200
      */
     public function changePassword(ChangePasswordRequest $request): JsonResponse
     {
@@ -163,13 +162,6 @@ class AuthController extends Controller
 
         /** @var User $user */
         $user = $request->user();
-
-        if (! Hash::check($dto->currentPassword, $user->password)) {
-            return response()->json(
-                ['message' => 'Текущий пароль указан неверно.'],
-                Response::HTTP_UNAUTHORIZED,
-            );
-        }
 
         $user->forceFill(['password' => $dto->newPassword])->save();
         $this->tokens->revokeAllForUser($user);
